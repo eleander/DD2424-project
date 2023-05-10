@@ -1,0 +1,4 @@
+Accuracies:
+ - Train: 0.891
+ - Validation: 0.925
+ - Test: 0.916

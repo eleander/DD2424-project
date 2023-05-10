@@ -1,17 +1,17 @@
 import copy
-import datetime
 import random
 from matplotlib import pyplot as plt
 import torch
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 import pandas as pd
-from numpy import asarray
-import numpy as np
 import os
 from PIL import Image
-from datetime import datetime
 import pickle
+
+SEED = 0
+random.seed(SEED)
+torch.manual_seed(SEED)
 
 ## Dataset Exploration
 datasets.OxfordIIITPet("data", download=True)
@@ -108,10 +108,10 @@ from torch.utils.data import DataLoader, Dataset
 
 # Split data into train and test
 train_df, test_df = train_test_split(
-    df, test_size=0.2, random_state=42, stratify=df["ClassId"]
+    df, test_size=0.2, random_state=SEED, stratify=df["ClassId"]
 )
 train_df, val_df = train_test_split(
-    train_df, test_size=0.2, random_state=42, stratify=train_df["ClassId"]
+    train_df, test_size=0.2, random_state=SEED, stratify=train_df["ClassId"]
 )
 
 
@@ -130,10 +130,12 @@ class AnimalDataset(Dataset):
 
 training_set = AnimalDataset(train_df)
 validation_set = AnimalDataset(val_df)
+test_set = AnimalDataset(test_df)
 
 batch_size = 32
 train_loader = DataLoader(training_set, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(validation_set, batch_size=batch_size, shuffle=True)
+test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=True)
 
 # Training
 loss = torch.nn.CrossEntropyLoss()
@@ -201,9 +203,11 @@ def train(
         val_acc.append(correct / len(validation_loader.dataset))
 
         print(
-            f"Epoch: {epoch+1}/{epochs}.. Train loss: {train_loss:.3f}.. Train acc: {train_acc[-1]:.3f}.. Val loss: {val_loss:.3f}.. Val acc: {val_acc[-1]:.3f}"
+            f"Epoch: {epoch+1}/{epochs}.. Train loss: {train_loss:.3f}.. Train acc: {train_acc[-1]:.3f}.. Val loss: {val_loss:.3f}.. Val acc: {val_acc[-1]:.3f}",
+            end="\r",
         )
 
+    print()
     return train_acc, val_acc
 
 
@@ -227,32 +231,39 @@ def test_model(model, test_loader, device="cuda:0"):
 def plot_accurcies(train_acc, val_acc, filename=None):
     plt.plot(train_acc, label="Training")
     plt.plot(val_acc, label="Validation")
+    plt.ylim(0, 1)
     plt.legend()
     plt.xlabel("Epoch")
     plt.ylabel("Accuracy")
 
     if filename:
-        plt.savefig(filename)
+        plt.savefig(f"results/{filename}")
     else:
         plt.show()
 
 
 # FIRST TEST
-# train(model, loss, optimizer, train_loader, val_loader, epochs=10, device=device)
+# train_acc, val_acc = train(
+#     model, loss, optimizer, train_loader, val_loader, epochs=10, device=device
+# )
+# test_acc = test_model(model, test_loader, device=device)
+# plot_accurcies(train_acc, val_acc, filename="cat_dog_acc.png")
+# print(
+#     f"Accuracies:\n - Train: {train_acc[-1]:.3f}\n - Validation: {val_acc[-1]:.3f}\n - Test: {test_acc:.3f}"
+# )
 
 
 # Augment Train df with (flip, small rotations, crops, small size scaling)
-def augment_df(df, p=0.25):
+def augment_df(df, p=0.125):
     augmented = []
 
     possible_transformations = [
         transforms.RandomHorizontalFlip(p=1),
         transforms.RandomVerticalFlip(p=1),
-        transforms.RandomRotation(20),
-        transforms.RandomRotation(-20),
-        transforms.RandomRotation(40),
-        transforms.RandomRotation(-40),
-        # transforms.RandomCrop(224),
+        transforms.RandomRotation(45),
+        transforms.RandomRotation(135),
+        transforms.RandomRotation(225),
+        transforms.RandomRotation(315),
     ]
 
     after_transformation = transforms.Compose(
@@ -282,11 +293,23 @@ print(f"Augmented size: {len(train_df)}")
 
 training_set = AnimalDataset(train_df, "ClassId")
 validation_set = AnimalDataset(val_df, "ClassId")
+test_set = AnimalDataset(test_df, "ClassId")
+
 train_loader = DataLoader(training_set, batch_size=batch_size, shuffle=True)
-val_loader = DataLoader(validation_set, batch_size=batch_size, shuffle=True)
+val_loader = DataLoader(validation_set, batch_size=batch_size)
+test_loader = DataLoader(test_set, batch_size=batch_size)
+
 model = replace_last_layers(resnet, [100, 50, 37], unfreeze_norm=True)
 loss = torch.nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-4, weight_decay=0.001)
+# Diferent learning rate for sequential layers
 
 # SECOND TEST
-train(model, loss, optimizer, train_loader, val_loader, epochs=10, device=device)
+train_acc, val_acc = train(
+    model, loss, optimizer, train_loader, val_loader, epochs=10, device=device
+)
+test_acc = test_model(model, test_loader, device=device)
+plot_accurcies(train_acc, val_acc, filename="breed_acc.png")
+print(
+    f"Accuracies:\n - Train: {train_acc[-1]:.3f}\n - Validation: {val_acc[-1]:.3f}\n - Test: {test_acc:.3f}"
+)
