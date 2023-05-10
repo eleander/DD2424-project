@@ -1,5 +1,6 @@
 import copy
 import datetime
+import random
 import torch
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
@@ -30,11 +31,11 @@ def load_data(df_path="./data.pkl"):
         names=["ImageName", "ClassId", "Species", "BreedId"],
         comment="#",
     )
-    print(f"Read the CSV")
+    print("Read the CSV")
     df["ImageName"] = df["ImageName"].apply(
         lambda x: f"data/oxford-iiit-pet/images/{x}.jpg"
     )
-    print(f"Added the path to the image")
+    print("Added the path to the image")
     df["Image"] = df["ImageName"].apply(lambda x: Image.open(x).convert("RGB"))
     preprocess = transforms.Compose(
         [
@@ -46,29 +47,20 @@ def load_data(df_path="./data.pkl"):
     )
 
     df["Image"] = df["Image"].apply(lambda x: preprocess(x))
-    print(f"Preprocessed the images")
+    print("Preprocessed the images")
 
     # save df in data as pickle
     with open(df_path, "wb") as f:
         pickle.dump(df, f)
-    print(f"Saved the dataframe as a pickle")
+    print("Saved the dataframe as a pickle")
     return df
 
 
 df = load_data()
 print(f"The dataset contains {len(df)} images.")
 
-# SPECIES: 1:Cat 2:Dog
-# Change to 0:Cat 1:Dog
 df["Species"] = df["Species"].apply(lambda x: x - 1)
-
-# BREED ID: 1-25:Cat 1:12:Dog
-# Change to 0-24:Cat 25:36:Dog
-# check species and then apply transformation
-df["BreedId"] = df.apply(
-    lambda x: x["BreedId"] - 1 if x["Species"] == 0 else x["BreedId"] + 11, axis=1
-)
-print(np.sort(df["BreedId"].unique()))
+df["ClassId"] = df["ClassId"].apply(lambda x: x - 1)
 
 ## Load Model
 
@@ -78,22 +70,29 @@ resnet = torch.hub.load(
 resnet.eval()
 
 
-def replace_last_layer(model, n_classes):
+def replace_last_layers(model, layers):
     # Make a copy of the model
     model = copy.deepcopy(model)
 
     n_features = model.fc.in_features
-    model.fc = torch.nn.Linear(n_features, n_classes)  # new layer
+    seq = []
+    _in = n_features
+    for layer in layers:
+        seq.append(torch.nn.Linear(_in, layer))
+        _in = layer
+
+    model.fc = torch.nn.Sequential(*seq)
 
     # Freeze all layers except the last one
     for param in model.parameters():
         param.requires_grad = False
-    model.fc.weight.requires_grad = True
+    for param in model.fc.parameters():
+        param.requires_grad = True
 
     return model
 
 
-model = replace_last_layer(resnet, 2)
+model = replace_last_layers(resnet, layers=[2])
 
 ## Train Model
 from sklearn.model_selection import train_test_split
@@ -101,15 +100,11 @@ from torch.utils.data import DataLoader, Dataset
 
 # Split data into train and test
 train_df, test_df = train_test_split(
-    df, test_size=0.2, random_state=42, stratify=df["BreedId"]
+    df, test_size=0.2, random_state=42, stratify=df["ClassId"]
 )
 train_df, val_df = train_test_split(
-    train_df, test_size=0.2, random_state=42, stratify=train_df["BreedId"]
+    train_df, test_size=0.2, random_state=42, stratify=train_df["ClassId"]
 )
-
-print(train_df["Image"].iloc[1].shape)
-
-# raise "stop"
 
 
 # DataLoader
@@ -137,6 +132,7 @@ loss = torch.nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=1e-4, weight_decay=0.001)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using {device} for training")
 
 
 def train(
@@ -198,4 +194,53 @@ def train(
         )
 
 
+# FIRST TEST
+# train(model, loss, optimizer, train_loader, val_loader, epochs=10, device=device)
+
+
+# Augment Train df with (flip, small rotations, crops, small size scaling)
+def augment_df(df, p=0.25):
+    augmented = []
+
+    possible_transformations = [
+        transforms.RandomHorizontalFlip(p=1),
+        transforms.RandomVerticalFlip(p=1),
+        # transforms.RandomRotation(20),
+        # transforms.RandomRotation(-20),
+    ]
+
+    after_transformation = transforms.Compose(
+        [
+            transforms.Resize(256, antialias=True),
+            transforms.CenterCrop(224),
+        ]
+    )
+
+    for i in range(len(df)):
+        data = df.iloc[i].copy()
+        img = data["Image"]
+        for trans in possible_transformations:
+            if random.random() < p:
+                img = trans(img)
+                img = after_transformation(img)
+                data["Image"] = img
+                augmented.append(data)
+
+    return pd.concat([df, pd.DataFrame(augmented)])
+
+
+print(f"Original size: {len(train_df)}")
+
+train_df = augment_df(train_df)
+print(f"Augmented size: {len(train_df)}")
+
+training_set = AnimalDataset(train_df, "ClassId")
+validation_set = AnimalDataset(val_df, "ClassId")
+train_loader = DataLoader(training_set, batch_size=batch_size, shuffle=True)
+val_loader = DataLoader(validation_set, batch_size=batch_size, shuffle=True)
+model = replace_last_layers(resnet, [37])
+loss = torch.nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-4, weight_decay=0.001)
+
+# SECOND TEST
 train(model, loss, optimizer, train_loader, val_loader, epochs=10, device=device)
