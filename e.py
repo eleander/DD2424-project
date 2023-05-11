@@ -72,9 +72,6 @@ resnet.eval()
 
 
 def replace_last_layers(model, layers, unfreeze_norm=False):
-    # Make a copy of the model
-    model = copy.deepcopy(model)
-
     n_features = model.fc.in_features
     seq = []
     _in = n_features
@@ -100,7 +97,7 @@ def replace_last_layers(model, layers, unfreeze_norm=False):
     return model
 
 
-model = replace_last_layers(resnet, layers=[2])
+model = replace_last_layers(copy.deepcopy(resnet), layers=[2])
 
 ## Train Model
 from sklearn.model_selection import train_test_split
@@ -301,8 +298,22 @@ test_loader = DataLoader(test_set, batch_size=batch_size)
 
 model = replace_last_layers(resnet, [100, 50, 37], unfreeze_norm=True)
 loss = torch.nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-4, weight_decay=0.001)
+
+# optimizer = torch.optim.Adam(model.parameters(), lr=1e-4, weight_decay=0.001)
 # Diferent learning rate for sequential layers
+
+# Get parameters of each last sequential layer
+layers_params = []
+for i, layer in enumerate(model.fc.children()):
+    layers_params.append({"params": layer.parameters(), "lr": 1e-3 * 0.1**i})
+
+# Get all other parameters except last sequential layers (model.fc)
+other_params = [p for name, p in model.named_parameters() if "fc" not in name]
+layers_params.append({"params": other_params, "lr": 1e-4})
+
+
+optimizer = torch.optim.Adam(layers_params, lr=1e-3, weight_decay=0.001)
+
 
 # SECOND TEST
 train_acc, val_acc = train(
