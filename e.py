@@ -13,6 +13,7 @@ from utils import (
     replace_last_layers,
     load_data,
     store_final_accuracies,
+    AnimalDataset,
 )
 
 SEED = 0
@@ -45,20 +46,6 @@ train_df, val_df = train_test_split(
     train_df, test_size=0.2, random_state=SEED, stratify=train_df["ClassId"]
 )
 
-
-# DataLoader
-class AnimalDataset(Dataset):
-    def __init__(self, df, _type="Species"):
-        self.df = df
-        self.type = _type
-
-    def __len__(self):
-        return len(self.df)
-
-    def __getitem__(self, idx):
-        return self.df.iloc[idx]["Image"], self.df.iloc[idx][self.type]
-
-
 training_set = AnimalDataset(train_df)
 validation_set = AnimalDataset(val_df)
 test_set = AnimalDataset(test_df)
@@ -77,16 +64,18 @@ print(f"Using {device} for training")
 
 
 # FIRST TEST
-# train_acc, val_acc = train(
-#     model, loss, optimizer, train_loader, val_loader, epochs=10, device=device
-# )
-# test_acc = test_model(model, test_loader, device=device)
-# filename = "resnet34_oxford_iiit_pet_2"
-# plot_accurcies(train_acc, val_acc, filename=f"{filename}.png")
-# store_final_accuracies(train_acc[-1], val_acc[-1], test_acc, filename=f"{filename}_acc.txt")
-# print(
-#     f"Accuracies:\n - Train: {train_acc[-1]:.3f}\n - Validation: {val_acc[-1]:.3f}\n - Test: {test_acc:.3f}"
-# )
+train_acc, val_acc = train(
+    model, loss, optimizer, train_loader, val_loader, epochs=10, device=device
+)
+test_acc = test_model(model, test_loader, device=device)
+filename = "resnet34_oxford_iiit_pet_2"
+plot_accurcies(train_acc, val_acc, filename=f"{filename}.png")
+store_final_accuracies(
+    train_acc[-1], val_acc[-1], test_acc, filename=f"{filename}_acc.txt"
+)
+print(
+    f"Accuracies:\n - Train: {train_acc[-1]:.3f}\n - Validation: {val_acc[-1]:.3f}\n - Test: {test_acc:.3f}"
+)
 
 
 # Augment Train df with (flip, small rotations, crops, small size scaling)

@@ -5,6 +5,7 @@ import pandas as pd
 import os
 import pickle
 from PIL import Image
+from torch.utils.data import Dataset
 
 preprocess = transforms.Compose(
     [
@@ -17,12 +18,24 @@ preprocess = transforms.Compose(
 )
 
 
-def load_data(df_path="./data.pkl", data_path="./data/oxford-iiit-pet/images/"):
-    # check if df.csv exists
-    if os.path.exists(df_path):
-        with open(df_path, "rb") as f:
-            return pickle.load(f)
+class AnimalDataset(Dataset):
+    def __init__(self, df, _type="Species", transform=preprocess):
+        self.df = df
+        self.type = _type
+        self.transform = transform
 
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, idx):
+        element = self.df.iloc[idx]
+        image = Image.open(element["ImageName"]).convert("RGB")
+        image = self.transform(image)
+
+        return image, element[self.type]
+
+
+def load_data(data_path="./data/oxford-iiit-pet/images/"):
     # if not, create it
     df = pd.read_csv(
         data_path,
@@ -35,27 +48,6 @@ def load_data(df_path="./data.pkl", data_path="./data/oxford-iiit-pet/images/"):
     df["ImageName"] = df["ImageName"].apply(
         lambda x: f"data/oxford-iiit-pet/images/{x}.jpg"
     )
-    print("Added the path to the image")
-    df["Image"] = df["ImageName"].apply(lambda x: Image.open(x).convert("RGB"))
-    # The images are resized to resize_size=[256] using interpolation=InterpolationMode.BILINEAR,
-    # followed by a central crop of crop_size=[224]. Finally the values are first rescaled to [0.0, 1.0] and
-    # then normalized using mean=[0.485, 0.456, 0.406] and std=[0.229, 0.224, 0.225].
-    preprocess = transforms.Compose(
-        [
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ]
-    )
-
-    df["Image"] = df["Image"].apply(lambda x: preprocess(x))
-    print("Preprocessed the images")
-
-    # save df in data as pickle
-    with open(df_path, "wb") as f:
-        pickle.dump(df, f)
-    print("Saved the dataframe as a pickle")
     return df
 
 

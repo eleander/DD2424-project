@@ -13,6 +13,7 @@ from utils import (
     replace_last_layers,
     load_data,
     store_final_accuracies,
+    AnimalDataset,
 )
 
 SEED = 0
@@ -33,19 +34,6 @@ df["ClassId"] = df["ClassId"].apply(lambda x: x - 1)
 model = torch.hub.load(
     "pytorch/vision", "vit_b_16", weights="ViT_B_16_Weights.IMAGENET1K_V1"
 )
-
-
-class AnimalDataset(Dataset):
-    def __init__(self, df, _type="Species"):
-        self.df = df
-        self.type = _type
-
-    def __len__(self):
-        return len(self.df)
-
-    def __getitem__(self, idx):
-        return self.df.iloc[idx]["Image"], self.df.iloc[idx][self.type]
-
 
 model = replace_last_layers(model, [37], True, unfreeze_norm=True)
 
