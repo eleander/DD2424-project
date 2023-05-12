@@ -80,7 +80,8 @@ print(
 
 # Augment Train df with (flip, small rotations, crops, small size scaling)
 def augment_df(df, p=0.125):
-    augmented = []
+    extra_df = []
+    extra_transformations = []
 
     possible_transformations = [
         transforms.RandomHorizontalFlip(p=1),
@@ -91,32 +92,31 @@ def augment_df(df, p=0.125):
         transforms.RandomRotation(315),
     ]
 
-    after_transformation = transforms.Compose(
-        [
-            transforms.Resize(256, antialias=True),
-            transforms.CenterCrop(224),
-        ]
-    )
-
     for i in range(len(df)):
-        data = df.iloc[i].copy()
-        img = data["Image"]
+        data = df.iloc[i]
         for trans in possible_transformations:
             if random.random() < p:
-                img = trans(img)
-                img = after_transformation(img)
-                data["Image"] = img
-                augmented.append(data)
+                trans = transforms.Compose(
+                    [
+                        trans,
+                        transforms.Resize(256, antialias=True),
+                        transforms.CenterCrop(224),
+                    ]
+                )
+                extra_df.append(data)
+                extra_transformations.append(trans)
 
-    return pd.concat([df, pd.DataFrame(augmented)])
+    return pd.DataFrame(extra_df), extra_transformations
 
-
-print(f"Original size: {len(train_df)}")
-
-train_df = augment_df(train_df)
-print(f"Augmented size: {len(train_df)}")
 
 training_set = AnimalDataset(train_df, "ClassId")
+print(f"Original size: {len(training_set)}")
+
+# Augment train set
+extra_df, extra_transformations = augment_df(train_df)
+training_set.add_items(extra_df, extra_transformations)
+print(f"Augmented size: {len(training_set)}")
+
 validation_set = AnimalDataset(val_df, "ClassId")
 test_set = AnimalDataset(test_df, "ClassId")
 

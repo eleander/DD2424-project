@@ -74,7 +74,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--epochs", type=int, default=5)
     parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--layers", action="append", type=int)
+    parser.add_argument("--layers", default=[], action="append", type=int)
     parser.add_argument("--file_extend", type=str, default="")
     parser.add_argument("--unfreeze_norm", type=bool, default=True)
     args = parser.parse_args()

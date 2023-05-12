@@ -1,5 +1,0 @@
-Epoch: 10/10.. Train loss: 0.072.. Train acc: 0.981.. Val loss: 0.001.. Val acc: 0.988
-Accuracies:
- - Train: 0.981
- - Validation: 0.988
- - Test: 0.990

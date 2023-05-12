@@ -23,6 +23,7 @@ class AnimalDataset(Dataset):
         self.df = df
         self.type = _type
         self.transform = transform
+        self.extra_transform = {}
 
     def __len__(self):
         return len(self.df)
@@ -32,7 +33,16 @@ class AnimalDataset(Dataset):
         image = Image.open(element["ImageName"]).convert("RGB")
         image = self.transform(image)
 
+        if idx in self.extra_transform:
+            image = self.extra_transform[idx](image)
+
         return image, element[self.type]
+
+    def add_items(self, items, extra_transformations):
+        size = len(self.df)
+        self.df = pd.concat([self.df, items])
+        for i, extra_transformation in enumerate(extra_transformations):
+            self.extra_transform[i + size] = extra_transformation
 
 
 def load_data(data_path="./data/oxford-iiit-pet/images/"):
