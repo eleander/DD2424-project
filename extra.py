@@ -1,5 +1,5 @@
 import torch
-from torch.utils.data import DataLoader, RandomSampler
+from torch.utils.data import DataLoader, RandomSampler, Subset
 from torchvision import datasets
 import argparse
 
@@ -18,6 +18,11 @@ def main(args):
 
     data = datasets.Caltech256("data", download=True, transform=preprocess)
     print(f"The dataset contains {len(data)} images.")
+
+    # Remove images with labels that are greater to args.n_labels
+    if args.n_labels < 257:
+        indices = [i for i, (_, label) in enumerate(data) if label < args.n_labels]
+        data = Subset(data, indices)
 
     if args.model == "resnet":
         model = torch.hub.load(
@@ -59,12 +64,7 @@ def main(args):
     test_acc = test_model(model, test_loader)
 
     plot_accurcies(train_acc, val_acc, filename=f"{filename}.png")
-    store_final_accuracies(
-        train_acc[-1], val_acc[-1], test_acc, filename=f"{filename}_acc.txt"
-    )
-    print(
-        f"Accuracies:\n - Train: {train_acc[-1]:.3f}\n - Validation: {val_acc[-1]:.3f}\n - Test: {test_acc:.3f}"
-    )
+    store_final_accuracies(train_acc, val_acc, test_acc, filename=f"{filename}_acc.txt")
 
 
 if __name__ == "__main__":
@@ -77,6 +77,7 @@ if __name__ == "__main__":
     parser.add_argument("--layers", default=[], action="append", type=int)
     parser.add_argument("--file_extend", type=str, default="")
     parser.add_argument("--unfreeze_norm", type=bool, default=True)
+    parser.add_argument("--n_labels", type=int, default=257)
     args = parser.parse_args()
-    args.layers.append(257)
+    args.layers.append(args.n_labels)
     main(args)

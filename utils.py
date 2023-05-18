@@ -98,6 +98,27 @@ def replace_last_layers(model, layers, is_vit=False, unfreeze_norm=False):
     return model
 
 
+def evaluate_model(model, data_loader, loss_fn, device="cuda:0"):
+    model.to(device)
+    model.eval()
+    correct = 0
+    loss = 0
+    with torch.no_grad():
+        for batch in data_loader:
+            inputs, targets = batch
+
+            inputs = inputs.to(device)
+            targets = targets.to(device)
+
+            outputs = model(inputs)
+            loss += loss_fn(outputs, targets).item()
+            correct += (outputs.argmax(1) == targets).sum().item()
+
+    loss /= len(data_loader)
+    acc = correct / len(data_loader.dataset)
+    return loss, acc
+
+
 def train(
     model,
     loss_fn,
@@ -105,19 +126,20 @@ def train(
     training_loader,
     validation_loader,
     epochs=20,
+    store_every_n_batchs=100,
     device="cuda:0",
 ):
     train_acc = []
     val_acc = []
+    train_loss = []
+    val_loss = []
+    steps = []
+    step = 0
 
     model.to(device)
     for epoch in range(epochs):
-        current_loss = 0.0
-        correct = 0
-
-        # Training
-        model.train()
         for batch in training_loader:
+            model.train()
             inputs, targets = batch
 
             inputs = inputs.to(device)
@@ -130,38 +152,29 @@ def train(
             loss.backward()
 
             optimizer.step()
-            current_loss += loss.item()
-            correct += (outputs.argmax(1) == targets).sum().item()
 
-        train_loss = current_loss / len(training_loader)
-        train_acc.append(correct / len(training_loader.dataset))
+            if step % store_every_n_batchs == 0:
+                total_loss, total_acc = evaluate_model(
+                    model, training_loader, loss_fn, device
+                )
+                train_loss.append(total_loss)
+                train_acc.append(total_acc)
 
-        val_loss = 0.0
-        correct = 0
+                total_loss, total_acc = evaluate_model(
+                    model, validation_loader, loss_fn, device
+                )
+                val_loss.append(total_loss)
+                val_acc.append(total_acc)
 
-        # Validation
-        model.eval()
-        with torch.no_grad():
-            for batch in validation_loader:
-                inputs, targets = batch
-
-                inputs = inputs.to(device)
-                targets = targets.to(device)
-
-                outputs = model(inputs)
-                val_loss = loss_fn(outputs, targets).item()
-                correct += (outputs.argmax(1) == targets).sum().item()
-
-        val_loss /= len(validation_loader)
-        val_acc.append(correct / len(validation_loader.dataset))
+            step += 1
 
         print(
-            f"Epoch: {epoch+1}/{epochs}.. Train loss: {train_loss:.3f}.. Train acc: {train_acc[-1]:.3f}.. Val loss: {val_loss:.3f}.. Val acc: {val_acc[-1]:.3f}",
+            f"Epoch: {epoch+1}/{epochs}.. Train loss: {train_loss[-1]:.3f}.. Train acc: {train_acc[-1]:.3f}.. Val loss: {val_loss[-1]:.3f}.. Val acc: {val_acc[-1]:.3f}",
             end="\r",
         )
 
     print()
-    return train_acc, val_acc
+    return (train_loss, train_acc), (val_loss, val_acc)
 
 
 def test_model(model, test_loader, device="cuda:0"):
@@ -181,13 +194,25 @@ def test_model(model, test_loader, device="cuda:0"):
     return correct / len(test_loader.dataset)
 
 
-def plot_accurcies(train_acc, val_acc, filename=None):
-    plt.plot(train_acc, label="Training")
-    plt.plot(val_acc, label="Validation")
-    plt.ylim(0, 1)
-    plt.legend()
-    plt.xlabel("Epoch")
-    plt.ylabel("Accuracy")
+def plot_accurcies(train_data, val_data, step_every=100, filename=None):
+    train_loss, train_acc = train_data
+    val_loss, val_acc = val_data
+
+    steps = [i * step_every for i in range(len(train_loss))]
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
+    ax1.plot(steps, train_loss, label="Training")
+    ax1.plot(steps, val_loss, label="Validation")
+    ax1.legend()
+    ax1.set_xlabel("Batch")
+    ax1.set_ylabel("Loss")
+
+    ax2.plot(steps, train_acc, label="Training")
+    ax2.plot(steps, val_acc, label="Validation")
+    ax2.legend()
+    ax2.set_xlabel("Batch")
+    ax2.set_ylabel("Accuracy")
+    ax2.set_ylim(0, 1)
 
     if filename:
         plt.savefig(f"results/{filename}")
@@ -195,8 +220,19 @@ def plot_accurcies(train_acc, val_acc, filename=None):
         plt.show()
 
 
-def store_final_accuracies(train_acc, val_acc, test_acc, filename=None):
+def store_final_accuracies(train_data, val_data, test_acc, filename=None):
+    train_loss, train_acc = train_data
+    val_loss, val_acc = val_data
+
     with open(f"results/{filename}", "w") as f:
-        f.write(f"Train: {train_acc:.3f}\n")
-        f.write(f"Val: {val_acc:.3f}\n")
+        f.write("Loss\n")
+        f.write(f"Train: {train_loss[-1]:.3f}\n")
+        f.write(f"Valididation: {val_loss[-1]:.3f}\n")
+        f.write("\nAccuracy\n")
+        f.write(f"Train: {train_acc[-1]:.3f}\n")
+        f.write(f"Valididation: {val_acc[-1]:.3f}\n")
         f.write(f"Test: {test_acc:.3f}\n")
+
+    print(
+        f"Accuracies:\n - Train: {train_acc[-1]:.3f}\n - Validation: {val_acc[-1]:.3f}\n - Test: {test_acc:.3f}"
+    )

@@ -70,12 +70,7 @@ train_acc, val_acc = train(
 test_acc = test_model(model, test_loader, device=device)
 filename = "resnet34_oxford_iiit_pet_2"
 plot_accurcies(train_acc, val_acc, filename=f"{filename}.png")
-store_final_accuracies(
-    train_acc[-1], val_acc[-1], test_acc, filename=f"{filename}_acc.txt"
-)
-print(
-    f"Accuracies:\n - Train: {train_acc[-1]:.3f}\n - Validation: {val_acc[-1]:.3f}\n - Test: {test_acc:.3f}"
-)
+store_final_accuracies(train_acc, val_acc, test_acc, filename=f"{filename}_acc.txt")
 
 
 # Augment Train df with (flip, small rotations, crops, small size scaling)
@@ -150,9 +145,4 @@ train_acc, val_acc = train(
 test_acc = test_model(model, test_loader, device="cuda:0")
 filename = "resnet34_oxford_iiit_pet_37"
 plot_accurcies(train_acc, val_acc, filename=f"{filename}.png")
-store_final_accuracies(
-    train_acc[-1], val_acc[-1], test_acc, filename=f"{filename}_acc.txt"
-)
-print(
-    f"Accuracies:\n - Train: {train_acc[-1]:.3f}\n - Validation: {val_acc[-1]:.3f}\n - Test: {test_acc:.3f}"
-)
+store_final_accuracies(train_acc, val_acc, test_acc, filename=f"{filename}_acc.txt")
