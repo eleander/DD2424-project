@@ -16,7 +16,10 @@ from utils import (
 def main(args):
     print(args)
 
-    data = datasets.Caltech256("data", download=True, transform=preprocess)
+    if args.dataset == "caltech256":
+        data = datasets.Caltech256("data", download=True, transform=preprocess)
+    elif args.dataset == "oxfordiiitpet":
+        data = datasets.OxfordIIITPet("data", download=True, transform=preprocess)
     print(f"The dataset contains {len(data)} images.")
 
     # Remove images with labels that are greater to args.n_labels
@@ -69,6 +72,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset", type=str, default="caltech256")
     parser.add_argument(
         "--model", type=str, default="resnet", choices=["resnet", "vit"]
     )
