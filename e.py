@@ -94,8 +94,8 @@ def augment_df(df, p=0.125):
                 trans = transforms.Compose(
                     [
                         trans,
-                        transforms.Resize(256, antialias=True),
-                        transforms.CenterCrop(224),
+                        transforms.Resize(224, antialias=True),
+                        # transforms.CenterCrop(224),
                     ]
                 )
                 extra_df.append(data)

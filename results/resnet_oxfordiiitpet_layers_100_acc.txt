@@ -1,0 +1,8 @@
+Loss
+Train: 0.064
+Valididation: 0.247
+
+Accuracy
+Train: 0.988
+Valididation: 0.920
+Test: 0.897
